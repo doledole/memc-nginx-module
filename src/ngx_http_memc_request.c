@@ -5,6 +5,68 @@
 #include "ngx_http_memc_module.h"
 #include "ngx_http_memc_util.h"
 
+static uintptr_t
+ngx_encode_uri(u_char *dst, u_char *src, size_t size)
+{
+    ngx_uint_t      n;
+    static u_char   hex[] = "0123456789ABCDEF";
+
+    /* " ", "#", "%", "?", %00-%1F, %7F-%FF */
+
+    static uint32_t   escape[] = {
+        0xffffffff, /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+
+        /* ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!  */
+        0xfc009bfe, /* 1111 1100 0000 0000  1001 1011 1111 1110 */
+
+        /* _^]\ [ZYX WVUT SRQP  ONML KJIH GFED CBA@ */
+        0x78000001, /* 0111 1000 0000 0000  0000 0000 0000 0001 */
+
+        /*  ~}| {zyx wvut srqp  onml kjih gfed cba` */
+        0xf8000001, /* 1111 1000 0000 0000  0000 0000 0000 0001 */
+
+        0xffffffff, /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+        0xffffffff, /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+        0xffffffff, /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+        0xffffffff  /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+    };
+
+    if (dst == NULL) {
+
+        /* find the number of the characters to be escaped */
+
+        n = 0;
+
+        while (size) {
+            if (escape[*src >> 5] & (1 << (*src & 0x1f))) {
+                n++;
+            }
+            src++;
+            size--;
+        }
+
+        return (uintptr_t) n;
+    }
+
+    while (size) {
+        if (escape[*src >> 5] & (1 << (*src & 0x1f))) {
+            *dst++ = '%';
+            *dst++ = hex[*src >> 4];
+            *dst++ = hex[*src & 0xf];
+            src++;
+
+        } else if (*src == ' ') {
+            *dst++ = '+';
+        } else {
+            *dst++ = *src++;
+        }
+
+        size--;
+    }
+
+    return (uintptr_t) dst;
+}
+
 
 ngx_int_t
 ngx_http_memc_create_storage_cmd_request(ngx_http_request_t *r)
@@ -42,7 +104,7 @@ ngx_http_memc_create_storage_cmd_request(ngx_http_request_t *r)
         return NGX_ERROR;
     }
 
-    escape = 2 * ngx_escape_uri(NULL, key_vv->data, key_vv->len, NGX_ESCAPE_MEMCACHED);
+    escape = 2 * ngx_encode_uri(NULL, key_vv->data, key_vv->len);
 
     /* prepare the "bytes" argument */
 
@@ -147,8 +209,7 @@ ngx_http_memc_create_storage_cmd_request(ngx_http_request_t *r)
         b->last = ngx_copy(b->last, key_vv->data, key_vv->len);
 
     } else {
-        b->last = (u_char *) ngx_escape_uri(b->last, key_vv->data, key_vv->len,
-                NGX_ESCAPE_MEMCACHED);
+        b->last = (u_char *) ngx_encode_uri(b->last, key_vv->data, key_vv->len);
     }
 
     ctx->key.len = b->last - ctx->key.data;
@@ -276,7 +337,7 @@ ngx_http_memc_create_get_cmd_request(ngx_http_request_t *r)
         return NGX_ERROR;
     }
 
-    escape = 2 * ngx_escape_uri(NULL, vv->data, vv->len, NGX_ESCAPE_MEMCACHED);
+    escape = 2 * ngx_encode_uri(NULL, vv->data, vv->len);
 
     len = sizeof("get ") - 1 + vv->len + escape + sizeof(CRLF) - 1;
 
@@ -303,8 +364,7 @@ ngx_http_memc_create_get_cmd_request(ngx_http_request_t *r)
         b->last = ngx_copy(b->last, vv->data, vv->len);
 
     } else {
-        b->last = (u_char *) ngx_escape_uri(b->last, vv->data, vv->len,
-                                            NGX_ESCAPE_MEMCACHED);
+        b->last = (u_char *) ngx_encode_uri(b->last, vv->data, vv->len);
     }
 
     ctx->key.len = b->last - ctx->key.data;
@@ -434,7 +494,7 @@ ngx_http_memc_create_delete_cmd_request(ngx_http_request_t *r)
         return NGX_ERROR;
     }
 
-    escape = 2 * ngx_escape_uri(NULL, key_vv->data, key_vv->len, NGX_ESCAPE_MEMCACHED);
+    escape = 2 * ngx_encode_uri(NULL, key_vv->data, key_vv->len);
 
     /* prepare the (optional) "exptime" argument */
 
@@ -477,8 +537,7 @@ ngx_http_memc_create_delete_cmd_request(ngx_http_request_t *r)
         b->last = ngx_copy(b->last, key_vv->data, key_vv->len);
 
     } else {
-        b->last = (u_char *) ngx_escape_uri(b->last, key_vv->data, key_vv->len,
-                                        NGX_ESCAPE_MEMCACHED);
+        b->last = (u_char *) ngx_encode_uri(b->last, key_vv->data, key_vv->len);
     }
 
     if ( ! exptime_vv->not_found && exptime_vv->len) {
@@ -515,7 +574,7 @@ ngx_http_memc_create_incr_decr_cmd_request(ngx_http_request_t *r)
         return NGX_ERROR;
     }
 
-    escape = 2 * ngx_escape_uri(NULL, key_vv->data, key_vv->len, NGX_ESCAPE_MEMCACHED);
+    escape = 2 * ngx_encode_uri(NULL, key_vv->data, key_vv->len);
 
     /* prepare the "value" argument */
 
@@ -549,8 +608,7 @@ ngx_http_memc_create_incr_decr_cmd_request(ngx_http_request_t *r)
         b->last = ngx_copy(b->last, key_vv->data, key_vv->len);
 
     } else {
-        b->last = (u_char *) ngx_escape_uri(b->last, key_vv->data, key_vv->len,
-                                        NGX_ESCAPE_MEMCACHED);
+        b->last = (u_char *) ngx_encode_uri(b->last, key_vv->data, key_vv->len);
     }
 
     *b->last++ = ' ';
