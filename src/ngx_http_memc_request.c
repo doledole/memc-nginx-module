@@ -1,10 +1,14 @@
+#ifndef DDEBUG
 #define DDEBUG 0
+#endif
 #include "ddebug.h"
 
 #include "ngx_http_memc_request.h"
 #include "ngx_http_memc_module.h"
 #include "ngx_http_memc_util.h"
 
+
+/* encode for jave memcached client */
 static uintptr_t
 ngx_encode_uri(u_char *dst, u_char *src, size_t size)
 {
@@ -85,12 +89,9 @@ ngx_http_memc_create_storage_cmd_request(ngx_http_request_t *r)
     ngx_http_variable_value_t      *exptime_vv;
     ngx_http_variable_value_t      *memc_value_vv;
 
-    ngx_http_memc_loc_conf_t       *mlcf;
     u_char                          bytes_buf[NGX_UINT32_LEN];
 
     /* TODO add support for the "cas" command */
-
-    mlcf = ngx_http_get_module_loc_conf(r, ngx_http_memc_module);
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_memc_module);
 
@@ -108,7 +109,7 @@ ngx_http_memc_create_storage_cmd_request(ngx_http_request_t *r)
 
     /* prepare the "bytes" argument */
 
-    if (ctx->memc_value_vv && ! ctx->memc_value_vv->not_found) {
+    if (ctx->memc_value_vv && !ctx->memc_value_vv->not_found) {
         dd("found variable $memc_value");
 
         memc_value_vv = ctx->memc_value_vv;
@@ -130,7 +131,8 @@ ngx_http_memc_create_storage_cmd_request(ngx_http_request_t *r)
         }
     }
 
-    bytes_len = ngx_snprintf(bytes_buf, sizeof(bytes_buf), "%O", bytes) - bytes_buf;
+    bytes_len = ngx_snprintf(bytes_buf, sizeof(bytes_buf), "%O", bytes)
+        - bytes_buf;
 
     /* prepare the "flags" argument */
 
@@ -324,9 +326,6 @@ ngx_http_memc_create_get_cmd_request(ngx_http_request_t *r)
     ngx_chain_t                    *cl;
     ngx_http_memc_ctx_t            *ctx;
     ngx_http_variable_value_t      *vv;
-    ngx_http_memc_loc_conf_t       *mlcf;
-
-    mlcf = ngx_http_get_module_loc_conf(r, ngx_http_memc_module);
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_memc_module);
 

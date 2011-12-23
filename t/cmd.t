@@ -1,7 +1,7 @@
 # vi:filetype=
 
 use lib 'lib';
-use Test::Nginx::LWP;
+use Test::Nginx::Socket;
 
 plan tests => repeat_each() * 2 * blocks();
 
@@ -115,6 +115,7 @@ __DATA__
 === TEST 8: $memc_cmd has its default values when it's an empty string
 --- config
     location /main {
+        echo_read_request_body;
         echo 'set big2';
         echo_subrequest PUT '/memc?key=big2';
 

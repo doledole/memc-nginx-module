@@ -1,4 +1,6 @@
+#ifndef DDEBUG
 #define DDEBUG 0
+#endif
 #include "ddebug.h"
 
 #include "ngx_http_memc_util.h"
@@ -120,8 +122,8 @@ ngx_http_memc_upstream_add(ngx_http_request_t *r, ngx_url_t *url)
     for (i = 0; i < umcf->upstreams.nelts; i++) {
 
         if (uscfp[i]->host.len != url->host.len
-            || ngx_strncasecmp(uscfp[i]->host.data, url->host.data, url->host.len)
-               != 0)
+            || ngx_strncasecmp(uscfp[i]->host.data, url->host.data,
+                url->host.len) != 0)
         {
             dd("upstream_add: host not match");
             continue;

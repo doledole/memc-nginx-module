@@ -44,4 +44,7 @@ ctags
 nginx
 *.html
 t/servroot/
-all.sh
+all
+build1[10]
+go
+buildroot/

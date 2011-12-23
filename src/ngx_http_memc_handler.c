@@ -1,4 +1,6 @@
+#ifndef DDEBUG
 #define DDEBUG 0
+#endif
 #include "ddebug.h"
 
 #include "ngx_http_memc_handler.h"
@@ -123,7 +125,8 @@ ngx_http_memc_handler(ngx_http_request_t *r)
             return NGX_HTTP_BAD_REQUEST;
         }
     } else {
-        memc_cmd = ngx_http_memc_parse_cmd(cmd_vv->data, cmd_vv->len, &is_storage_cmd);
+        memc_cmd = ngx_http_memc_parse_cmd(cmd_vv->data, cmd_vv->len,
+                &is_storage_cmd);
 
         if (memc_cmd == ngx_http_memc_cmd_unknown) {
             ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
@@ -356,7 +359,7 @@ ngx_http_memc_handler(ngx_http_request_t *r)
                 return NGX_HTTP_BAD_REQUEST;
             }
 
-            if ( ! ngx_http_memc_valid_uint64_str(
+            if (!ngx_http_memc_valid_uint64_str(
                     value_vv->data, value_vv->len))
             {
                 return NGX_HTTP_BAD_REQUEST;
@@ -364,41 +367,13 @@ ngx_http_memc_handler(ngx_http_request_t *r)
         }
 
         ctx->memc_value_vv = value_vv;
-
-        if (value_vv->not_found) {
-            if (r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD)) {
-                ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
-                 "ngx_memc: $memc_value variable requires explicit "
-                 "assignment for HTTP request method %V and memcached "
-                 "command %V",
-                 &r->method_name, &ctx->cmd_str);
-
-                return NGX_HTTP_BAD_REQUEST;
-            }
-
-            rc = ngx_http_read_client_request_body(r, ngx_http_upstream_init);
-
-            if (rc >= NGX_HTTP_SPECIAL_RESPONSE) {
-                return rc;
-            }
-
-            return NGX_DONE;
-        }
     }
 
-    rc = ngx_http_discard_request_body(r);
+    rc = ngx_http_read_client_request_body(r, ngx_http_upstream_init);
 
-    if (rc != NGX_OK) {
+    if (rc == NGX_ERROR || rc > NGX_OK) {
         return rc;
     }
-
-#if defined(nginx_version) && nginx_version >= 8011
-
-    r->main->count++;
-
-#endif
-
-    ngx_http_upstream_init(r);
 
     return NGX_DONE;
 }

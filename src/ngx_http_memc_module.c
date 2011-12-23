@@ -1,4 +1,6 @@
+#ifndef DDEBUG
 #define DDEBUG 0
+#endif
 #include "ddebug.h"
 
 /*
@@ -6,7 +8,7 @@
  */
 
 /*
- * Copyright (C) agentzh (章亦春)
+ * Copyright (C) Zhang "agentzh" Yichun
  */
 
 #include "ngx_http_memc_module.h"
@@ -354,7 +356,8 @@ ngx_http_memc_cmds_allowed(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     for (i = 1; i < cf->args->nelts; i++) {
-        memc_cmd = ngx_http_memc_parse_cmd(value[i].data, value[i].len, &is_storage_cmd);
+        memc_cmd = ngx_http_memc_parse_cmd(value[i].data, value[i].len,
+                &is_storage_cmd);
 
         if (memc_cmd == ngx_http_memc_cmd_unknown) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
