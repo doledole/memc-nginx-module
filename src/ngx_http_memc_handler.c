@@ -398,13 +398,6 @@ ngx_http_memc_abort_request(ngx_http_request_t *r)
 static void
 ngx_http_memc_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
 {
-    ngx_http_upstream_t            *u;
-
-    u = r->upstream;
-
-    /* Add this for keepaplive module */
-    u->header_sent = 1;
-    
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "finalize http memcached request");
     return;
