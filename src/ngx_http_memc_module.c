@@ -20,6 +20,7 @@
 #include <ngx_http.h>
 #include <nginx.h>
 
+
 #define SAFE_LENGTH     224
 #define DECRMENT_STEP   8
 
@@ -166,7 +167,7 @@ static ngx_http_variable_t ngx_http_imgoutlink_vars[] = {
 
 	{ ngx_string("safe_http_referer"), NULL,
 	  ngx_http_safe_http_referer_variable, 0,
-	  NGX_HTTP_VAR_NOHASH, 0 },
+	  0, 0 },
 
 	{ ngx_null_string, NULL, NULL, 0, 0, 0 }
 };
