@@ -20,6 +20,14 @@
 #include <ngx_http.h>
 #include <nginx.h>
 
+#define SAFE_LENGTH     224
+#define DECRMENT_STEP   8
+
+static ngx_int_t ngx_http_safe_http_referer_variable(ngx_http_request_t *r,
+        ngx_http_variable_value_t *v, uintptr_t data);
+
+static ngx_int_t ngx_http_memc_add_variables(ngx_conf_t *cf);
+
 static void *ngx_http_memc_create_loc_conf(ngx_conf_t *cf);
 static char *ngx_http_memc_merge_loc_conf(ngx_conf_t *cf,
     void *parent, void *child);
@@ -124,7 +132,7 @@ static ngx_command_t  ngx_http_memc_commands[] = {
 
 
 static ngx_http_module_t  ngx_http_memc_module_ctx = {
-    NULL,                                  /* preconfiguration */
+    ngx_http_memc_add_variables,           /* preconfiguration */
     ngx_http_memc_init,                    /* postconfiguration */
 
     NULL,                                  /* create main configuration */
@@ -152,6 +160,149 @@ ngx_module_t  ngx_http_memc_module = {
     NULL,                                  /* exit master */
     NGX_MODULE_V1_PADDING
 };
+
+
+static ngx_http_variable_t ngx_http_imgoutlink_vars[] = {
+
+	{ ngx_string("safe_http_referer"), NULL,
+	  ngx_http_safe_http_referer_variable, 0,
+	  NGX_HTTP_VAR_NOHASH, 0 },
+
+	{ ngx_null_string, NULL, NULL, 0, 0, 0 }
+};
+
+
+static uintptr_t
+ngx_encode_uri(u_char *dst, u_char *src, size_t size)
+{
+    ngx_uint_t      n;
+    static u_char   hex[] = "0123456789ABCDEF";
+
+                    /* " ", "#", "%", "?", %00-%1F, %7F-%FF */
+
+    static uint32_t   escape[] = {
+        0xffffffff, /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+
+                    /* ?>=< ;:98 7654 3210  /.-, +*)( '&%$ #"!  */
+        0xfc009bfe, /* 1111 1100 0000 0000  1001 1011 1111 1110 */
+
+                    /* _^]\ [ZYX WVUT SRQP  ONML KJIH GFED CBA@ */
+        0x78000001, /* 0111 1000 0000 0000  0000 0000 0000 0001 */
+
+                    /*  ~}| {zyx wvut srqp  onml kjih gfed cba` */
+        0xf8000001, /* 1111 1000 0000 0000  0000 0000 0000 0001 */
+
+        0xffffffff, /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+        0xffffffff, /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+        0xffffffff, /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+        0xffffffff  /* 1111 1111 1111 1111  1111 1111 1111 1111 */
+    };
+
+    if (dst == NULL) {
+
+        /* find the number of the characters to be escaped */
+
+        n = 0;
+
+        while (size) {
+            if (escape[*src >> 5] & (1 << (*src & 0x1f))) {
+                n++;
+            }
+            src++;
+            size--;
+        }
+
+        return (uintptr_t) n;
+    }
+
+    while (size) {
+        if (escape[*src >> 5] & (1 << (*src & 0x1f))) {
+            *dst++ = '%';
+            *dst++ = hex[*src >> 4];
+            *dst++ = hex[*src & 0xf];
+            src++;
+
+        } else if (*src == ' ') {
+            *dst++ = '+';
+        } else {
+            *dst++ = *src++;
+        }
+
+        size--;
+    }
+
+    return (uintptr_t) dst;
+}
+
+
+static size_t  
+make_memcached_safe_variable_length(u_char *data, size_t len)
+{
+    size_t            l;
+    uintptr_t         escape;
+
+    if (len > SAFE_LENGTH) {
+        len = SAFE_LENGTH;
+    }
+
+    while (1) {
+
+        escape = 2 * ngx_encode_uri(NULL, data, len);
+
+        l = len + escape;
+
+        if (l < SAFE_LENGTH) {
+            break;
+        }
+
+        len -= DECRMENT_STEP;
+    }
+
+    return len;
+}
+
+
+static ngx_int_t 
+ngx_http_safe_http_referer_variable (ngx_http_request_t *r,
+        ngx_http_variable_value_t *v, uintptr_t data) 
+{
+    ngx_table_elt_t  *h;
+
+    h =  r->headers_in.referer;
+
+    if (h) {
+        v->len = h->value.len;
+        v->valid = 1;
+        v->no_cacheable = 0;
+        v->not_found = 0;
+        v->data = h->value.data;
+
+        v->len = make_memcached_safe_variable_length(v->data, v->len);
+    } else {
+        v->not_found = 1;
+    }
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t 
+ngx_http_memc_add_variables(ngx_conf_t *cf)
+{
+	ngx_http_variable_t *var, *v;
+
+	for (v = ngx_http_imgoutlink_vars; v->name.len; v++) {
+		var = ngx_http_add_variable(cf, &v->name, v->flags);
+		if (var == NULL) {
+		    return NGX_ERROR;
+		}
+
+		var->get_handler = v->get_handler;
+		var->data = v->data;
+	}
+
+	return NGX_OK;
+}
 
 
 static void *
